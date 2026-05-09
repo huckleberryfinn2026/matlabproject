@@ -50,3 +50,80 @@ SummaryTable = table( ...
 );
 
 disp(SummaryTable)
+
+% ── Section 5.1: Data Simulation ────────────────────────────────────────
+
+% Step 1: Logit regression
+% Regress the original treatment variable on the 5 covariates.
+% glmfit automatically adds an intercept, so we pass 5 columns (no ones column).
+% Result b_logit is 6x1: [intercept; b_age; b_educ; b_married; b_nodegree; b_RE75]
+X_covariates = [age, education, married, nodegree, RE75];   % 780x5
+b_logit = glmfit(X_covariates, treatment, 'binomial', 'link', 'logit');
+
+% Build the full design matrix with intercept (780x6) for computing X*b_logit
+X_full = [ones(780, 1), age, education, married, nodegree, RE75];
+
+fprintf('Logit coefficients (b_logit):\n');
+disp(b_logit);
+
+% Step 2: Create new artificial treatment variable for the 624 control obs
+% Compute linear predictor for all 780 obs, apply indicator function 1{X*b_logit > 0}
+linear_pred      = X_full * b_logit;                   % 780x1
+treatment_new    = linear_pred > 0;                    % 780x1 logical: 1 if > 0, else 0
+treatment_sim    = treatment_new(control_group);       % 624x1: drop the 156 actual participants
+
+fprintf('New treated (in sim):   %d\n', sum(treatment_sim));
+fprintf('New control (in sim):   %d\n', sum(~treatment_sim));
+
+% Step 3: Simulate age, education, RE75 by binary group
+% Binary variables for the 624 control obs (kept unchanged from empirical data)
+married_ctrl  = married(control_group);    % 624x1
+nodegree_ctrl = nodegree(control_group);   % 624x1
+
+% Overall empirical min/max for clipping simulated values
+min_vals = [min(age), min(education), min(RE75)];
+max_vals = [max(age), max(education), max(RE75)];
+
+% Preallocate simulated continuous variables (624 rows x 3 cols: age, educ, RE75)
+cont_sim = zeros(624, 3);
+
+% All 8 combinations of (treatment, married, nodegree) — each can be 0 or 1
+binary_combos = [0 0 0; 0 0 1; 0 1 0; 0 1 1;
+                 1 0 0; 1 0 1; 1 1 0; 1 1 1];
+
+for k = 1:8
+    t_val = binary_combos(k, 1);
+    m_val = binary_combos(k, 2);
+    n_val = binary_combos(k, 3);
+
+    % Rows in empirical data (780 obs) matching this group
+    emp_idx = (treatment == t_val) & (married == m_val) & (nodegree == n_val);
+
+    % Rows in simulated data (624 obs) matching this group
+    sim_idx = (treatment_sim == t_val) & (married_ctrl == m_val) & (nodegree_ctrl == n_val);
+
+    n_sim = sum(sim_idx);
+    if n_sim == 0; continue; end   % skip empty groups
+
+    % Compute group mean and covariance from empirical data
+    emp_cont  = [age(emp_idx), education(emp_idx), RE75(emp_idx)];
+    mu_grp    = mean(emp_cont);
+    cov_grp   = cov(emp_cont);
+
+    % Draw multivariate normal samples for this group
+    samples = mvnrnd(mu_grp, cov_grp, n_sim);   % n_sim x 3
+
+    % Clip to overall empirical min/max
+    samples = max(samples, min_vals);
+    samples = min(samples, max_vals);
+
+    % Round age and education to integers (columns 1 and 2)
+    samples(:, 1) = round(samples(:, 1));
+    samples(:, 2) = round(samples(:, 2));
+
+    cont_sim(sim_idx, :) = samples;
+end
+
+age_sim  = cont_sim(:, 1);   % 624x1
+educ_sim = cont_sim(:, 2);   % 624x1
+RE75_sim = cont_sim(:, 3);   % 624x1
