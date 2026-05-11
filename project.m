@@ -183,7 +183,7 @@ se_theta = sqrt(sum((theta_boot - mean(theta_boot)).^2) / (B - 1));
 disp(se_theta)
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% Visualization of bootstrap distribution
+% Visualization of the bootstrap distribution (Lecture 4)
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 figure
