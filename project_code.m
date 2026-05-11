@@ -306,8 +306,9 @@ stats_mean = table(mean(beta_store)', mean(se_store)', mean(tval_store)', mean(p
 disp(stats_mean);
 
 %  Calculate the proportion of simulations with p<0.05
-prop_pvalues = mean(arrayfun(@(X) abs(X) < 0.05, pval_store(:, 2)));
-disp(prop_pvalues);
+% Use an helper function to allow the use of different values
+prop_pvalues = @(varargin) mean(arrayfun(@(X) abs(X) < varargin{1}, pval_store(:, 2)));
+disp(prop_pvalues(0.05));
 
 % Mean Coefficients when p<0.05 or p>=0.05
 T_beta = table(beta_store(:,2), pval_store(:,2) < 0.05, 'VariableNames', {'Beta', 'Significant'});
