@@ -303,12 +303,7 @@ for s = 1:n_mc
     % Section 5.2 (OLS estimator): Estimate the slope coefficients, standard errors, t-values, and p-values
     X_ols = [ones(624,1), double(treatment_sim), cont_sim(:,1), cont_sim(:,2), ...
              married_ctrl, nodegree_ctrl, cont_sim(:,3)];
-    beta_hat = (X_ols' * X_ols)^(-1) * X_ols' * RE78_sim; 
-    residuals  = RE78_sim - X_ols * beta_hat;     
-    MSE = (residuals' * residuals) / (size(X_ols, 1) - size(X_ols, 2));           
-    se_hat = sqrt(diag(MSE * (X_ols' * X_ols)^(-1)));                       
-    t_vals = beta_hat ./ se_hat; 
-    p_vals = 2 * (1 - tcdf(abs(t_vals), size(X_ols, 1) - size(X_ols, 2)));
+    [beta_hat, se_hat, t_vals, p_vals] = ols_estimate(X_ols, RE78_sim);
 
     % Store the estimated slope coefficients, standard errors, t-values, and p-values
     beta_store(s, :) = beta_hat';
