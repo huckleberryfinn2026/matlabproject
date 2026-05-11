@@ -18,22 +18,10 @@ control = readmatrix('psid_controls.txt');
 % Combine treated and control observations into one dataset
 data = [treated; control];
 
-%   data(:,4) - Take all rows from column 4
-%   data(:,4) == 1 - Is column 4 equal to 1?"; Result is a logical vector,
-%   where TRUE = 1 and FALSE = 0
-%   data(logical_vector,:) - Keep rows where logical vector = TRUE
-%   data = data(data(:,4)==1,:) - (1) Look at column 4 (black), (2) Find rows where
-%   value = 1, (3) Keep only those rows
-data = data(data(:,4)==1,:);
-
-% Extract relevant variables from the filtered dataset
-treatment = data(:,1);
-age = data(:,2);
-education = data(:,3);
-married = data(:,6);
-nodegree = data(:,7);
-RE75 = data(:,9);
-RE78 = data(:,10);
+% Prepare data:
+% - keep only African American individuals
+% - extract relevant variables from the filtered dataset
+[data, treatment, age, education, married, nodegree, RE75, RE78] = prepareData(data);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TASK 4.1: Summary statistics
@@ -78,9 +66,6 @@ SummaryTable = table( ...
 );
 
 disp(SummaryTable)
-
-
-
 
 
 %% Task 4.2.1: Estimation procedure
@@ -346,3 +331,26 @@ ax.XLabel.String = 'Treatment';
 ax.YLabel.String = 'Beta';
 title('Boxplot of Betas for Treatment')
 hold off
+
+function [data, treatment, age, education, married, nodegree, RE75, RE78] = prepareData(data)
+    % Local helper function for data preparation
+    % The function keeps only African American individuals and extracts
+    % the variables used in the analysis.
+
+    %   data(:,4) - Take all rows from column 4
+    %   data(:,4) == 1 - Is column 4 equal to 1? Result is a logical vector,
+    %   where TRUE = 1 and FALSE = 0
+    %   data(logical_vector,:) - Keep rows where logical vector = TRUE
+    %   data = data(data(:,4)==1,:) - (1) Look at column 4 (black), (2) Find rows where
+    %   value = 1, (3) Keep only those rows
+    data = data(data(:,4)==1,:);
+
+    % Extract relevant variables from the filtered dataset
+    treatment = data(:,1);
+    age = data(:,2);
+    education = data(:,3);
+    married = data(:,6);
+    nodegree = data(:,7);
+    RE75 = data(:,9);
+    RE78 = data(:,10);
+end
