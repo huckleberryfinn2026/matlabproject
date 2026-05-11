@@ -81,6 +81,128 @@ disp(SummaryTable)
 
 
 
+
+
+%% Task 4.2.1: Estimation procedure
+% theta_hat = (1/N1) * sum_{treated} (mu(1) - mu(0)),
+% with mu(j) = X * b_j and b_j = inv(X_j'*X_j) * X_j'*y_j for j = 0, 1.
+% OLS is computed via the user-defined value class OLS.m (Lecture 8).
+
+% Design matrix (780 x 6) and dependent variable.
+X = [ones(length(age), 1), age, education, married, nodegree, RE75];
+y = RE78;
+N = size(X, 1);
+
+% Subsample sizes.
+N1 = sum(treated_group)
+N0 = sum(control_group)
+
+% Two OLS estimators (one per group).
+ols1 = OLS(X(treated_group, :), y(treated_group));
+ols0 = OLS(X(control_group, :), y(control_group));
+
+% Predicted earnings under each regime for all 780 observations.
+mu1 = X * ols1.beta;
+mu0 = X * ols0.beta;
+
+% Average treatment effect on the treated.
+theta = mean(mu1(treated_group) - mu0(treated_group))
+
+
+%% Task 4.2.2: Bootstrap standard error - serial loop
+% B = 299 nonparametric bootstrap replications. See equation (4.6).
+
+B = 299;
+rng(123)
+theta_boot = zeros(B, 1);
+
+tic
+for b = 1:B
+
+    % Bootstrap sample indices.
+    boot_index = randi(N, N, 1);
+
+    % Bootstrap sample.
+    X_boot         = X(boot_index, :);
+    y_boot         = y(boot_index);
+    treated_boot   = treated_group(boot_index);     % logical for this draw
+
+    % OLS on resampled treated and control groups.
+    ols1_boot = OLS(X_boot(treated_boot,  :), y_boot(treated_boot));
+    ols0_boot = OLS(X_boot(~treated_boot, :), y_boot(~treated_boot));
+
+    % Bootstrap treatment effect.
+    theta_boot(b) = mean(X_boot(treated_boot, :) * ...
+                         (ols1_boot.beta - ols0_boot.beta));
+
+end
+elapsed_time_serial = toc
+
+% Bootstrap standard error, equation (4.6).
+se_theta = sqrt(sum((theta_boot - mean(theta_boot)).^2) / (B - 1))
+
+
+%% Task 4.2.2: Bootstrap standard error - parallel loop (Lecture 7)
+% Same computation written as a parfor loop. M is the maximum number of
+% workers; M = 0 forces serial execution. If the Parallel Computing
+% Toolbox is not available, the code falls back to M = 0 so that the
+% parfor syntax is still demonstrated.
+
+delete(gcp('nocreate'))                         % Close any existing pool.
+try
+    M = 3;                                      % Number of workers.
+    parpool(M);
+catch
+    M = 0;                                      % Fall back to serial parfor.
+    warning('Parallel pool unavailable. Running parfor serially.')
+end
+
+rng(123)
+theta_boot_par = zeros(B, 1);
+
+tic
+parfor (b = 1:B, M)
+
+    boot_index   = randi(N, N, 1);
+    X_boot       = X(boot_index, :);
+    y_boot       = y(boot_index);
+    treated_boot = treated_group(boot_index);
+
+    ols1_boot = OLS(X_boot(treated_boot,  :), y_boot(treated_boot));
+    ols0_boot = OLS(X_boot(~treated_boot, :), y_boot(~treated_boot));
+
+    theta_boot_par(b) = mean(X_boot(treated_boot, :) * ...
+                             (ols1_boot.beta - ols0_boot.beta));
+
+end
+elapsed_time_parallel = toc
+
+elapsed_time_serial / elapsed_time_parallel     % Ratio serial vs. parallel.
+
+% Parallel bootstrap standard error (same formula, parallel results).
+se_theta_par = sqrt(sum((theta_boot_par - mean(theta_boot_par)).^2) / (B - 1))
+
+delete(gcp('nocreate'))                         % Shut down the parallel pool.
+
+
+%% Visualization of the bootstrap distribution (Lecture 4)
+
+figure
+ax = gca;
+histogram(theta_boot, 25, 'FaceColor', 'red')
+hold on
+xline(theta,            'b-',  'LineWidth', 2)
+xline(mean(theta_boot), 'k--', 'LineWidth', 2)
+ax.XLabel.String = 'Bootstrap replicates of theta hat';
+ax.YLabel.String = 'Frequency';
+title('Bootstrap distribution of the treatment effect (B = 299)')
+hold off
+
+
+
+
+
+
 % ── Section 5.1: Data Simulation ────────────────────────────────────────
 % ── One-time setup (outside Monte Carlo loop) ───────────────────────────
 
