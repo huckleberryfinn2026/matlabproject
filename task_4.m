@@ -91,9 +91,7 @@ se_theta = sqrt(sum((theta_b - mean(theta_b)).^2) / (B - 1))
 
 %% 6. Bootstrap standard error - parallel loop (Lecture 7)
 % Same computation written as a parfor loop. M is the maximum number of
-% workers; M = 0 forces serial execution (see Lecture 7). If the Parallel
-% Computing Toolbox is not available, the code falls back to M = 0 so
-% that the parfor syntax is still demonstrated.
+% workers; M = 0 forces serial execution.
 
 delete(gcp('nocreate'))                         % Close any existing pool.
 try
