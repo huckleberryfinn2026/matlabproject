@@ -82,115 +82,88 @@ disp(SummaryTable)
 
 
 % ── Section 5.1: Data Simulation ────────────────────────────────────────
+% ── One-time setup (outside Monte Carlo loop) ───────────────────────────
 
-% Step 1: Logit regression
-% Regress the original treatment variable on the 5 covariates.
-% glmfit automatically adds an intercept, so we pass 5 columns (no ones column).
-% Result b_logit is 6x1: [intercept; b_age; b_educ; b_married; b_nodegree; b_RE75]
+% Step 1: Logit regression — computed once from empirical data
+% glmfit adds intercept automatically; b_logit is 6x1
 X_covariates = [age, education, married, nodegree, RE75];   % 780x5
 b_logit = glmfit(X_covariates, treatment, 'binomial', 'link', 'logit');
-
-% Build the full design matrix with intercept (780x6) for computing X*b_logit
-X_full = [ones(780, 1), age, education, married, nodegree, RE75];
+X_full  = [ones(780, 1), age, education, married, nodegree, RE75];  % 780x6
 
 fprintf('Logit coefficients (b_logit):\n');
 disp(b_logit);
 
-% Step 2: Create new artificial treatment variable for the 624 control obs
-% Compute linear predictor for all 780 obs, apply indicator function 1{X*b_logit > 0}
-linear_pred      = X_full * b_logit;                   % 780x1
-treatment_new    = linear_pred > 0;                    % 780x1 logical: 1 if > 0, else 0
-treatment_sim    = treatment_new(control_group);       % 624x1: drop the 156 actual participants
+% Step 2: New artificial treatment for the 624 control obs — fixed across all simulations
+% Apply indicator function 1{X*b_logit > 0} and keep only control group rows
+linear_pred   = X_full * b_logit;                        % 780x1
+treatment_sim = linear_pred(control_group) > 0;          % 624x1 logical
+married_ctrl  = married(control_group);                   % 624x1, unchanged
+nodegree_ctrl = nodegree(control_group);                  % 624x1, unchanged
 
-fprintf('New treated (in sim):   %d\n', sum(treatment_sim));
-fprintf('New control (in sim):   %d\n', sum(~treatment_sim));
+fprintf('Simulated treated: %d  |  Simulated control: %d\n', ...
+    sum(treatment_sim), sum(~treatment_sim));
 
-% Step 3: Simulate age, education, RE75 by binary group
-% Binary variables for the 624 control obs (kept unchanged from empirical data)
-married_ctrl  = married(control_group);    % 624x1
-nodegree_ctrl = nodegree(control_group);   % 624x1
-
-% Overall empirical min/max for clipping simulated values
-min_vals = [min(age), min(education), min(RE75)];
-max_vals = [max(age), max(education), max(RE75)];
-
-% Preallocate simulated continuous variables (624 rows x 3 cols: age, educ, RE75)
-cont_sim = zeros(624, 3);
-
-% All 8 combinations of (treatment, married, nodegree) — each can be 0 or 1
-binary_combos = [0 0 0; 0 0 1; 0 1 0; 0 1 1;
-                 1 0 0; 1 0 1; 1 1 0; 1 1 1];
-
-for k = 1:8
-    t_val = binary_combos(k, 1);
-    m_val = binary_combos(k, 2);
-    n_val = binary_combos(k, 3);
-
-    % Rows in empirical data (780 obs) matching this group
-    emp_idx = (treatment == t_val) & (married == m_val) & (nodegree == n_val);
-
-    % Rows in simulated data (624 obs) matching this group
-    sim_idx = (treatment_sim == t_val) & (married_ctrl == m_val) & (nodegree_ctrl == n_val);
-
-    n_sim = sum(sim_idx);
-    if n_sim == 0; continue; end   % skip empty groups
-
-    % Compute group mean and covariance from empirical data
-    emp_cont  = [age(emp_idx), education(emp_idx), RE75(emp_idx)];
-    mu_grp    = mean(emp_cont);
-    cov_grp   = cov(emp_cont);
-
-    % Draw multivariate normal samples for this group
-    samples = mvnrnd(mu_grp, cov_grp, n_sim);   % n_sim x 3
-
-    % Clip to overall empirical min/max
-    samples = max(samples, min_vals);
-    samples = min(samples, max_vals);
-
-    % Round age and education to integers (columns 1 and 2)
-    samples(:, 1) = round(samples(:, 1));
-    samples(:, 2) = round(samples(:, 2));
-
-    cont_sim(sim_idx, :) = samples;
-end
-
-age_sim  = cont_sim(:, 1);   % 624x1
-educ_sim = cont_sim(:, 2);   % 624x1
-RE75_sim = cont_sim(:, 3);   % 624x1
-
-% Step 4: Build simulated design matrix X_sim (624x6)
-% Same column structure as X_full: [ones, age, education, married, nodegree, RE75]
-% Binary variables (married, nodegree) are taken unchanged from the control group
-X_sim = [ones(624, 1), age_sim, educ_sim, married_ctrl, nodegree_ctrl, RE75_sim];
-
-% Step 5: Generate RE78_sim
-% OLS coefficients from empirical data (section 4.2.1)
-X1 = X_full(treated_group, :);         % 156x6 treated submatrix
-X0 = X_full(control_group, :);         % 624x6 control submatrix
-y1 = RE78(treated_group);              % RE78 for treated (156x1)
-y0 = RE78(control_group);             % RE78 for control (624x1)
-
-b1 = (X1' * X1) \ (X1' * y1);        % OLS coefs for treated group
-b0 = (X0' * X0) \ (X0' * y0);        % OLS coefs for control group
-
-N1 = sum(treated_group);              % 156 treated
-N0 = sum(control_group);              % 624 control
-K  = size(X_full, 2) - 1;            % 5 (cols of X minus intercept)
-
-% Residual standard deviations from empirical regressions (eq. 5.1 and 5.2)
+% OLS coefficients and residual SDs from empirical data — fixed across simulations
+X1 = X_full(treated_group, :);   X0 = X_full(control_group, :);
+y1 = RE78(treated_group);         y0 = RE78(control_group);
+b1 = (X1' * X1) \ (X1' * y1);
+b0 = (X0' * X0) \ (X0' * y0);
+N1 = sum(treated_group);   N0 = sum(control_group);   K = size(X_full, 2) - 1;
 sigma1 = sqrt((1 / (N1 - K)) * sum((X1 * b1 - y1).^2));
 sigma0 = sqrt((1 / (N0 - K)) * sum((X0 * b0 - y0).^2));
 
-% Standard normal noise vectors, drawn fresh each simulation run
-u = randn(624, 1);
-v = randn(624, 1);
+% Precompute MVN group parameters once — reused in every simulation iteration
+binary_combos = [0 0 0; 0 0 1; 0 1 0; 0 1 1; 1 0 0; 1 0 1; 1 1 0; 1 1 1];
+mu_groups   = cell(8, 1);
+cov_groups  = cell(8, 1);
+grp_sim_idx = cell(8, 1);
+min_vals = [min(age), min(education), min(RE75)];
+max_vals = [max(age), max(education), max(RE75)];
 
-% Simulated potential outcomes for all 624 obs (eq. 5.1 and 5.2)
-mu_sim1 = X_sim * b1 + u * sigma1;   % what each obs would earn under treatment
-mu_sim0 = X_sim * b0 + v * sigma0;   % what each obs would earn without treatment
+for k = 1:8
+    t_val = binary_combos(k,1); m_val = binary_combos(k,2); n_val = binary_combos(k,3);
+    emp_idx      = (treatment == t_val) & (married == m_val) & (nodegree == n_val);
+    grp_sim_idx{k} = (treatment_sim == t_val) & (married_ctrl == m_val) & (nodegree_ctrl == n_val);
+    emp_cont = [age(emp_idx), education(emp_idx), RE75(emp_idx)];
+    if size(emp_cont, 1) >= 2
+        mu_groups{k}  = mean(emp_cont);
+        cov_groups{k} = cov(emp_cont);
+    end
+end
 
-% Assign RE78_sim: use mu_sim1 if treatment_sim=1, else mu_sim0
-RE78_sim = mu_sim1 .* double(treatment_sim) + mu_sim0 .* double(~treatment_sim);
+% ── Monte Carlo loop: 1000 simulations ──────────────────────────────────
+n_mc = 1000;
+
+for s = 1:n_mc
+
+    % Step 3: Simulate age, education, RE75 using MVN within each binary group
+    cont_sim = zeros(624, 3);
+    for k = 1:8
+        idx = grp_sim_idx{k};
+        n_k = sum(idx);
+        if n_k == 0 || isempty(mu_groups{k}); continue; end
+        samples = mvnrnd(mu_groups{k}, cov_groups{k}, n_k);   % n_k x 3
+        samples = max(samples, min_vals);   % clip to empirical min
+        samples = min(samples, max_vals);   % clip to empirical max
+        samples(:, 1) = round(samples(:, 1));   % age -> integer
+        samples(:, 2) = round(samples(:, 2));   % education -> integer
+        cont_sim(idx, :) = samples;
+    end
+
+    % Step 4: Build X_sim (624x6) — same structure as X_full
+    X_sim = [ones(624, 1), cont_sim(:,1), cont_sim(:,2), ...
+             married_ctrl, nodegree_ctrl, cont_sim(:,3)];
+
+    % Step 5: Generate RE78_sim — u and v drawn fresh each iteration
+    u = randn(624, 1);
+    v = randn(624, 1);
+    mu_sim1  = X_sim * b1 + u * sigma1;   % potential outcome under treatment
+    mu_sim0  = X_sim * b0 + v * sigma0;   % potential outcome without treatment
+    RE78_sim = mu_sim1 .* double(treatment_sim) + mu_sim0 .* double(~treatment_sim);
+
+    % Section 5.2 (OLS estimator) will go here
+
+end
 
 
 
