@@ -285,12 +285,10 @@ for s = 1:n_mc
     mu_sim0  = X_sim * b0 + v * sigma0;   % potential outcome without treatment
     RE78_sim = mu_sim1 .* double(treatment_sim) + mu_sim0 .* double(~treatment_sim);
 
-    % Section 5.2 (OLS estimator): coefficients, SEs, t-values, p-values.
-    % The local function run_ols wraps these computations and delegates
-    % the post-estimation formulas to the static class StatsUtils.
+    % Section 5.2 (OLS estimator): Estimate the slope coefficients, standard errors, t-values, and p-values
     X_ols = [ones(624,1), double(treatment_sim), cont_sim(:,1), cont_sim(:,2), ...
              married_ctrl, nodegree_ctrl, cont_sim(:,3)];
-    [beta_hat, se_hat, t_vals, p_vals] = run_ols(X_ols, RE78_sim);
+    [beta_hat, se_hat, t_vals, p_vals] = ols_estimate(X_ols, RE78_sim);
 
     % Store the estimated slope coefficients, standard errors, t-values, and p-values
     beta_store(s, :) = beta_hat';
