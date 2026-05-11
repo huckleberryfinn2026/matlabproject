@@ -170,8 +170,11 @@ for b = 1:B
 
 end
 
-% Stop timer
-elapsed_time_serial = toc;
+elapsed_time_parallel = toc
+
+elapsed_time_serial / elapsed_time_parallel     % Ratio serial vs. parallel.
+
+delete(gcp('nocreate'))                         % Shut down the parallel pool.
 
 % Bootstrap standard error
 se_theta = sqrt(sum((theta_boot - mean(theta_boot)).^2) / (B - 1));
