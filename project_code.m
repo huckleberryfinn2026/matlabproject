@@ -18,22 +18,10 @@ control = readmatrix('psid_controls.txt');
 % Combine treated and control observations into one dataset
 data = [treated; control];
 
-%   data(:,4) - Take all rows from column 4
-%   data(:,4) == 1 - Is column 4 equal to 1?"; Result is a logical vector,
-%   where TRUE = 1 and FALSE = 0
-%   data(logical_vector,:) - Keep rows where logical vector = TRUE
-%   data = data(data(:,4)==1,:) - (1) Look at column 4 (black), (2) Find rows where
-%   value = 1, (3) Keep only those rows
-data = data(data(:,4)==1,:);
-
-% Extract relevant variables from the filtered dataset
-treatment = data(:,1);
-age       = data(:,2);
-education = data(:,3);
-married   = data(:,6);
-nodegree  = data(:,7);
-RE75      = data(:,9);
-RE78      = data(:,10);
+% Prepare data:
+% - keep only African American individuals
+% - extract relevant variables from the filtered dataset
+[data, treatment, age, education, married, nodegree, RE75, RE78] = prepareData(data);
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % TASK 4.1: Summary statistics
@@ -52,14 +40,14 @@ X_summary = [age education married nodegree RE75 RE78];
 varNames = {'Age','Education','Married','Nodegree','RE75','RE78'};
 
 % Compute summary statistics for treated individuals
-mean_treated   = mean(X_summary(treated_group,:));
+mean_treated = mean(X_summary(treated_group,:));
 median_treated = median(X_summary(treated_group,:));
-std_treated    = std(X_summary(treated_group,:));
+std_treated = std(X_summary(treated_group,:));
 
 % Compute summary statistics for control individuals
-mean_control   = mean(X_summary(control_group,:));
+mean_control = mean(X_summary(control_group,:));
 median_control = median(X_summary(control_group,:));
-std_control    = std(X_summary(control_group,:));
+std_control = std(X_summary(control_group,:));
 
 % Create a table with summary statistics
 % Rows correspond to variables
@@ -381,4 +369,29 @@ function [beta, se, t, p] = run_ols(X, y)
     se        = StatsUtils.olsSE(X, residuals);
     t         = StatsUtils.tStat(beta, se);
     p         = StatsUtils.pVal(t, df);
+end
+
+
+
+function [data, treatment, age, education, married, nodegree, RE75, RE78] = prepareData(data)
+    % Local helper function for data preparation
+    % The function keeps only African American individuals and extracts
+    % the variables used in the analysis.
+
+    %   data(:,4) - Take all rows from column 4
+    %   data(:,4) == 1 - Is column 4 equal to 1? Result is a logical vector,
+    %   where TRUE = 1 and FALSE = 0
+    %   data(logical_vector,:) - Keep rows where logical vector = TRUE
+    %   data = data(data(:,4)==1,:) - (1) Look at column 4 (black), (2) Find rows where
+    %   value = 1, (3) Keep only those rows
+    data = data(data(:,4)==1,:);
+
+    % Extract relevant variables from the filtered dataset
+    treatment = data(:,1);
+    age = data(:,2);
+    education = data(:,3);
+    married = data(:,6);
+    nodegree = data(:,7);
+    RE75 = data(:,9);
+    RE78 = data(:,10);
 end
