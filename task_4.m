@@ -1,7 +1,4 @@
 %% Project Work - Part 1: Analysis of the Employment Programme
-%
-% Sections 4.1, 4.2.1 and 4.2.2 of the project brief.
-% Group X: Person A, Person B, Person C, Person D.
 
 clear
 clc
