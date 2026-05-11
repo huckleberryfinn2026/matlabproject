@@ -1,6 +1,5 @@
 classdef OLS
     % OLS regression: beta = inv(X'*X) * X'*y.
-    % Value class in the style of CDF.m from Lecture 8.
 
     properties
         X       % Design matrix.
