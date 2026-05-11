@@ -128,19 +128,38 @@ disp(theta)
 % TASK 4.2.2: Bootstrap standard error
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-% Number of bootstrap replications
-B = 299;
+% Same computation written as a parfor loop. M is the maximum number of
+% workers; M = 0 forces serial execution.
+
+% Close any existing parallel pool
+delete(gcp('nocreate'))
+
+try
+
+    % Number of workers
+    M = 3;
+
+    % Start parallel pool
+    parpool(M);
+
+catch
+
+    M = 0;
+
+    warning('Parallel pool unavailable. Running parfor serially.')
+
+end
 
 % Set seed for reproducibility
 rng(123)
 
 % Preallocate vector for bootstrap treatment effects
-theta_boot = zeros(B,1);
+theta_boot_par = zeros(B,1);
 
 % Start timer
 tic
 
-for b = 1:B
+parfor (b = 1:B, M)
 
     % Draw bootstrap sample indices with replacement
     boot_index = randi(N, N, 1);
@@ -166,7 +185,7 @@ for b = 1:B
     b0_boot = (X0_boot' * X0_boot) \ (X0_boot' * y0_boot);
 
     % Compute bootstrap treatment effect
-    theta_boot(b) = mean(X_boot(treated_boot_group,:) * (b1_boot - b0_boot));
+    theta_boot_par(b) = mean(X_boot(treated_boot_group,:) * (b1_boot - b0_boot));
 
 end
 
