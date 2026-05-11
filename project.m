@@ -256,6 +256,11 @@ end
 % ── Monte Carlo loop: 1000 simulations ──────────────────────────────────
 n_mc = 1000;
 
+beta_store  = zeros(n_mc, 7); 
+se_store    = zeros(n_mc, 7);
+tval_store  = zeros(n_mc, 7);
+pval_store  = zeros(n_mc, 7);
+
 for s = 1:n_mc
 
     % Step 3: Simulate age, education, RE75 using MVN within each binary group
@@ -283,10 +288,54 @@ for s = 1:n_mc
     mu_sim0  = X_sim * b0 + v * sigma0;   % potential outcome without treatment
     RE78_sim = mu_sim1 .* double(treatment_sim) + mu_sim0 .* double(~treatment_sim);
 
-    % Section 5.2 (OLS estimator) will go here
+    % Section 5.2 (OLS estimator): Estimate the slope coefficients, standard errors, t-values, and p-values
+    X_ols = [ones(624,1), double(treatment_sim), cont_sim(:,1), cont_sim(:,2), ...
+             married_ctrl, nodegree_ctrl, cont_sim(:,3)];
+    beta_hat = (X_ols' * X_ols)^(-1) * X_ols' * RE78_sim; 
+    residuals  = RE78_sim - X_ols * beta_hat;     
+    MSE = (residuals' * residuals) / (size(X_ols, 1) - size(X_ols, 2));           
+    se_hat = sqrt(diag(MSE * (X_ols' * X_ols)^(-1)));                       
+    t_vals = beta_hat ./ se_hat; 
+    p_vals = 2 * (1 - tcdf(abs(t_vals), size(X_ols, 1) - size(X_ols, 2)));
 
+    % Store the estimated slope coefficients, standard errors, t-values, and p-values
+    beta_store(s, :) = beta_hat';
+    se_store(s, :)   = se_hat';
+    tval_store(s, :) = t_vals';
+    pval_store(s, :) = p_vals';
 end
 
+% Creation of a table that shows the means of these four statistics across all simulations
+stats_mean = table(mean(beta_store)', mean(se_store)', mean(tval_store)', mean(pval_store)', ...
+    'VariableNames', {'Coefficients', 'Standard_Errors', 'T_values', 'P_values'}, ...
+    'RowNames', {'Intercept', 'Treatment', 'Age', 'Education', 'Married', 'Nodegree', 'RE75'});
+disp(stats_mean);
 
+%  Calculate the proportion of simulations with p<0.05 
+prop_pvalues = mean(arrayfun(@(X) abs(X) < 0.05, pval_store(:, 2)));
+disp(prop_pvalues);
 
+% Mean Coefficients when p<0.05 or p>=0.05
+T_beta = table(beta_store(:,2), pval_store(:,2) < 0.05, 'VariableNames', {'Beta', 'Significant'});
+disp(grpstats(T_beta, 'Significant', {'mean', 'std', 'min', 'max'}));
 
+% Plot a histogram that illustrates the distribution of the p-values
+figure
+ax = gca;
+histogram(pval_store(:, 2), 25, 'FaceColor', 'red')
+hold on
+xline(mean(pval_store(:, 2)), 'k--', 'LineWidth', 2)
+ax.XLabel.String = 'P-Values';
+ax.YLabel.String = 'Frequency';
+title('Distibution of P-Values for Treatment')
+hold off
+
+% Boxplot of Betas for Treatment
+figure
+ax = gca;
+boxplot(beta_store(:, 2))
+hold on
+ax.XLabel.String = 'Treatment';
+ax.YLabel.String = 'Beta';
+title('Boxplot of Betas for Treatment')
+hold off
