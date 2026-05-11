@@ -236,20 +236,33 @@ sigma0 = sqrt((1 / (N0 - K)) * sum((X0 * b0 - y0).^2));
 
 % Precompute MVN group parameters once — reused in every simulation iteration
 binary_combos = [0 0 0; 0 0 1; 0 1 0; 0 1 1; 1 0 0; 1 0 1; 1 1 0; 1 1 1];
-mu_groups   = cell(8, 1);
-cov_groups  = cell(8, 1);
-grp_sim_idx = cell(8, 1);
 min_vals = [min(age), min(education), min(RE75)];
 max_vals = [max(age), max(education), max(RE75)];
 
+% Anonymous function: element-wise clamp of x to [lo, hi] (broadcasts over rows)
+clip = @(x, lo, hi) min(max(x, lo), hi);
+
+combos_cell = num2cell(binary_combos, 2);   % 8x1 cell, each entry is a 1x3 combo row
+
+% cellfun: logical index into the 624 simulated obs for each binary combo
+grp_sim_idx = cellfun(@(row) ...
+    (treatment_sim == row(1)) & (married_ctrl == row(2)) & (nodegree_ctrl == row(3)), ...
+    combos_cell, 'UniformOutput', false);
+
+% cellfun: extract empirical [age, education, RE75] for each combo from the 780-obs dataset
+get_emp_cont = @(row) [age((treatment==row(1))&(married==row(2))&(nodegree==row(3))), ...
+                        education((treatment==row(1))&(married==row(2))&(nodegree==row(3))), ...
+                        RE75((treatment==row(1))&(married==row(2))&(nodegree==row(3)))];
+emp_conts = cellfun(get_emp_cont, combos_cell, 'UniformOutput', false);
+
+% Compute per-group MVN parameters; skip groups with fewer than 2 empirical obs
+mu_groups  = cell(8, 1);
+cov_groups = cell(8, 1);
 for k = 1:8
-    t_val = binary_combos(k,1); m_val = binary_combos(k,2); n_val = binary_combos(k,3);
-    emp_idx      = (treatment == t_val) & (married == m_val) & (nodegree == n_val);
-    grp_sim_idx{k} = (treatment_sim == t_val) & (married_ctrl == m_val) & (nodegree_ctrl == n_val);
-    emp_cont = [age(emp_idx), education(emp_idx), RE75(emp_idx)];
-    if size(emp_cont, 1) >= 2
-        mu_groups{k}  = mean(emp_cont);
-        cov_groups{k} = cov(emp_cont);
+    ec = emp_conts{k};
+    if size(ec, 1) >= 2
+        mu_groups{k}  = mean(ec);
+        cov_groups{k} = cov(ec);
     end
 end
 
@@ -270,8 +283,7 @@ for s = 1:n_mc
         n_k = sum(idx);
         if n_k == 0 || isempty(mu_groups{k}); continue; end
         samples = mvnrnd(mu_groups{k}, cov_groups{k}, n_k);   % n_k x 3
-        samples = max(samples, min_vals);   % clip to empirical min
-        samples = min(samples, max_vals);   % clip to empirical max
+        samples = clip(samples, min_vals, max_vals);         % clamp to empirical range
         samples(:, 1) = round(samples(:, 1));   % age -> integer
         samples(:, 2) = round(samples(:, 2));   % education -> integer
         cont_sim(idx, :) = samples;
